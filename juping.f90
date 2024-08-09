@@ -1,4 +1,5 @@
     subroutine juping(X, X_size1, X_size2)
+            
     use blas95
     implicit none
     integer X_size1, X_size2
@@ -15,7 +16,5 @@
     call gemm(mean_X, l, Y, 'N', 'T')
 
     X = X - Y
-    print *, mean_X
-    print *, X
     end subroutine
     
