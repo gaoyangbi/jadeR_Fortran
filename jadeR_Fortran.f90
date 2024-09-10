@@ -33,10 +33,13 @@ program jadeR_Fortran
     X(2,1) = 4
     X(2,2) = 5
     X(2,3) = 6
+    print *, X(1,1),X(1,2),X(1,3)
+    print *, X(2,1),X(2,2),X(2,3)
     call jadeR(X, m, X_size1, X_size2)
     
     
-    !print *, X
+    print *, X(1,1),X(1,2),X(1,3)
+    print *, X(2,1),X(2,2),X(2,3)
 end program jadeR_Fortran
     
     
@@ -49,8 +52,12 @@ subroutine jadeR(X, m, X_size1, X_size2)
     
     integer m, n, T, X_size1, X_size2
     real*8 X(X_size1, X_size2)
+    real*8 , allocatable :: U(:,:), D(:)
+    real*8 , allocatable :: Ds(:),k(:)
 
-    real*8 , allocatable :: U(:,:), D(:,:)
+    ! real*8 a(3,3)
+    ! a=reshape([1,1,0,0,0,2,0,0,-1],shape(a))
+    ! a=transpose(a)
     
         
     n = X_size1
@@ -74,11 +81,22 @@ subroutine jadeR(X, m, X_size1, X_size2)
     ! 信号子空间的白化与投影
     ! =========================================
     allocate(U(X_size1,X_size1))
-    allocate(D(X_size1,X_size1))
+    allocate(D(X_size1))
     call eig(matmul(X,transpose(X))/T, n, U, D)
 
+    ! Sort by increasing variances
+    ! 将特征值从小到大排列
+    ! Ds从小到大排序后的特征值序列
+    ! k为Ds中每个对应特征值在原始序列D的位置
+    ! ============================================
+    allocate(Ds(X_size1))
+    allocate(k(X_size1))
+    call sort_(Ds,k,D)
 
-    !print *, X
+    print *, U
+    print *, D
+
+
 100 format(' ',A,' ',I2.2,' ',A)
 end subroutine
 
