@@ -1,4 +1,6 @@
 subroutine eig(x, x_size, U, D)
+    ! U为特征向量 按列排列
+    ! D为特征值与U的每一列对应   
     use lapack95
     use f95_precision  
     integer x_size

@@ -24,22 +24,28 @@ program jadeR_Fortran
     integer m, X_size1, X_size2
         
     m = 2
-    X_size1 = 2
-    X_size2 = 3
+    X_size1 = 3
+    X_size2 = 4
     allocate(X(X_size1, X_size2))
     X(1,1) = 1
-    X(1,2) = 2
-    X(1,3) = 3
-    X(2,1) = 4
-    X(2,2) = 5
-    X(2,3) = 6
-    print *, X(1,1),X(1,2),X(1,3)
-    print *, X(2,1),X(2,2),X(2,3)
+    X(1,2) = 3
+    X(1,3) = 2
+    X(1,4) = 4
+    X(2,1) = 9
+    X(2,2) = 7
+    X(2,3) = 8
+    X(2,4) = 5
+    X(3,1) = 9
+    X(3,2) = 15
+    X(3,3) = 18
+    X(3,4) = 13
+    ! print *, X(1,1),X(1,2),X(1,3)
+    ! print *, X(2,1),X(2,2),X(2,3)
     call jadeR(X, m, X_size1, X_size2)
     
     
-    print *, X(1,1),X(1,2),X(1,3)
-    print *, X(2,1),X(2,2),X(2,3)
+    ! print *, X(1,1),X(1,2),X(1,3)
+    ! print *, X(2,1),X(2,2),X(2,3)
 end program jadeR_Fortran
     
     
@@ -49,16 +55,18 @@ subroutine jadeR(X, m, X_size1, X_size2)
     implicit none
     ! X is the matrix     m is the number of the modes   
     ! X_size1 is the rows , X_size2 is the cols
-    
+
+    integer i,j  ! 循环变量
     integer m, n, T, X_size1, X_size2
     real*8 X(X_size1, X_size2)
+    real*8 sum_E
     real*8 , allocatable :: U(:,:), D(:)
-    real*8 , allocatable :: Ds(:),k(:)
-
-    ! real*8 a(3,3)
-    ! a=reshape([1,1,0,0,0,2,0,0,-1],shape(a))
-    ! a=transpose(a)
-    
+    real*8 , allocatable :: Ds(:)
+    integer, allocatable :: k(:)
+    real*8 , allocatable :: C(:,:)
+    real*8 , allocatable :: E(:,:)
+    integer*8 , allocatable :: PCs(:)  
+    real*8 , allocatable :: B(:,:)
         
     n = X_size1
     T = X_size2
@@ -71,14 +79,22 @@ subroutine jadeR(X, m, X_size1, X_size2)
         write (*,100) "jade -> Looking for", m , "sources"
     end if
     
-    ! 对数据矩阵的行进行去平均操作 Mean removal
-    ! =======================================
+    ! Mean removal
+    ! 对数据矩阵的行进行去平均操作 
+    ! =======================================    
     write (*,*) "jade -> Removing the mean value"    
     call juping(X, n, T)
 
 
     ! whitening & projection onto signal subspace
     ! 信号子空间的白化与投影
+    ! =======================================
+    write (*,*) "jade -> Whitening the data"
+    
+    ! An eigen basis for the sample covariance matrix
+    ! 计算特征值
+    ! U为特征向量 按列排列
+    ! D为特征值与U的每一列对应   
     ! =========================================
     allocate(U(X_size1,X_size1))
     allocate(D(X_size1))
@@ -91,10 +107,44 @@ subroutine jadeR(X, m, X_size1, X_size2)
     ! ============================================
     allocate(Ds(X_size1))
     allocate(k(X_size1))
-    call sort_(Ds,k,D)
+    call sort_(Ds,k,D,X_size1)
 
-    print *, U
-    print *, D
+    ! The m most significant princip. comp. by decreasing variance
+    ! 选择最后m个最显著的特征值
+    ! ===============================================
+    allocate(PCs(m))
+    j = 1
+    do i = n , n-m+1,-1
+        PCs(j) = i
+        j = j + 1
+    end do
+
+    ! ==============================================
+    allocate(C(n,n))
+    allocate(E(n,1))
+    C = matmul(X,transpose(X))/T
+    do i = 1,n
+        E(n-i+1,1) = D(i)
+    end do
+    sum_E = sum(E)
+    E     = E *100.0 /sum_E
+
+
+    ! ---PCA----------------------------------------
+    allocate(B(m,n))
+    B = transpose(U(:,k(PCs)))
+
+
+    do i = 1,m
+        write(*,'(*(f10.4))') B(i,:)
+    end do
+
+
+
+
+
+
+
 
 
 100 format(' ',A,' ',I2.2,' ',A)
