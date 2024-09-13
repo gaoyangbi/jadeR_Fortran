@@ -12,8 +12,8 @@ all: jadeR_Fortran
 #	COPTS = -fopenmp
 #	LIBS = -llapack -lblas
 #endif
-jadeR_Fortran: juping.f90 jadeR_Fortran.f90 eig.f90
-	$(FC) -o jadeR_Fortran juping.f90 jadeR_Fortran.f90 eig.f90 -qmkl $(LIBS)
+jadeR_Fortran: jadeR_Fortran.f90
+	$(FC) -o jadeR_Fortran *.f90 -qmkl $(LIBS)
 
 clean:
 	rm -f *.o jadeR_Fortran

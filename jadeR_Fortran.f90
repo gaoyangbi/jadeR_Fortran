@@ -51,6 +51,8 @@ end program jadeR_Fortran
     
     
 subroutine jadeR(X, m, X_size1, X_size2) 
+    use blas95
+    use f95_precision
     implicit none
     ! X is the matrix     m is the number of the modes   
     ! X_size1 is the rows , X_size2 is the cols
@@ -66,9 +68,12 @@ subroutine jadeR(X, m, X_size1, X_size2)
     integer*8 , allocatable :: PCs(:)  
     real*8 , allocatable :: B(:,:),scales(:),PC(:,:) 
     real*8 , allocatable :: inv_PC(:,:),EOF_(:,:)
-    real*8 , allocatable :: X_(:,:),X_tran(:,:)
-    
+    real*8 , allocatable :: X_(:,:),X_tran(:,:)    
     integer dimsymm,nbcm
+    real*8 , allocatable :: CM(:,:),R(:,:),Qij(:,:),Xim(:,:),Xijm(:,:),R_vec_i(:,:),R_vec_j(:,:)
+    integer, allocatable :: Uns(:),range_(:)
+    real*8 , allocatable :: V(:,:),Diag(:,:)
+    real*8 On,Off
         
     n = X_size1
     T = X_size2
@@ -155,21 +160,89 @@ subroutine jadeR(X, m, X_size1, X_size2)
     X_    = MATMUL(B,X)
     
     ! --- release variable memory-----------------------
-    deallocate(U,D,Ds,PCs,scales)
-    
+    deallocate(U,D,Ds,k,PCs,scales,inv_PC,C)
     ! =======================================================================================================
+
 
     
     ! Reshaping of the data, hoping to speed up things a little bit
     ! 改变数据矩阵形状，以加速
     ! =======================================================================================================
+    write (*,*) "jade -> Estimating cumulant matrices"
     allocate(X_tran(T,m))
     X_tran = TRANSPOSE(X_)
-    ! =======================================================================================================
-    do i = 1,T
-        write(*,'(*(f10.4))') X_tran(i,:)
-    end do    
+
+    dimsymm    = (m*(m+1))/2  ! Dim. of the space of real symm matrices
+    nbcm       = dimsymm      ! number of cumulant matrices
+
+    allocate(CM(m,m*nbcm))
+    allocate(R(m,m),R_vec_i(m,1),R_vec_j(m,1))
+    allocate(Qij(m,m),Xim(T,1),Xijm(T,1),Uns(m),range_(m))
+    R          = 0.0
+    do i = 1,m
+        R(i,i) = 1.0
+    end do
+    Uns        = 1.0
+    do i = 1,m
+        range_(i) = i
+    end do
     
+    
+    do i = 1,m
+        Xim(:,1)      = X_tran(:,i)
+        Xijm          = Xim * Xim
+        R_vec_i(:,1)  = R(:,i)  ! 若不单独另开数组，仅仅是引用某个2维数组的单列的话，会被系统认为是一维数组无法进行转置
+        Qij           = matmul(transpose(Xijm(:,Uns) * X_tran) , X_tran) / T - R - 2*matmul(R_vec_i,transpose(R_vec_i))       
+        CM(:,range_)  = Qij
+        range_        = range_  + m 
+
+        do j = 1,i-1
+            Xijm(:,1)     = X_tran(:,j)
+            Xijm          = Xim * Xijm
+            R_vec_j(:,1)  = R(:,j)
+            Qij           = sqrt(2.0) * (matmul(transpose(Xijm(:,Uns) * X_tran) , X_tran) / T - matmul(R_vec_i,transpose(R_vec_j)) - matmul(R_vec_j,transpose(R_vec_i)))   
+            CM(:,range_)  = Qij
+            range_        = range_  + m 
+        end do
+    end do
+    ! Now we have nbcm = m(m+1)/2 cumulants matrices stored in a big m x m*nbcm array.  
+    ! =======================================================================================================
+
+
+
+    ! joint diagonalization of the cumulant matrices
+    ! 累积量矩阵的联合对角化
+    ! =======================================================================================================
+
+    ! The dont-try-to-be-smart init
+    ! --------------------------------------------
+    allocate(V(m,m),Diag(m,1))
+    do i = 1,m
+        V(i,i) = 1.0  ! la rotation initiale
+    end do
+    Diag       = 0.0
+    On         = 0.0
+    do i = 1,m
+        range_(i) = i
+    end do
+
+    do i = 1,nbcm
+        do j = 1,m 
+            Diag(j,1)   = CM(j,range_(j)) 
+        end do
+        On      = On + sum(matmul(transpose(Diag),Diag))
+        range_  = range_  + m 
+    end do
+    Off   = sum(CM * CM) - On
+
+
+
+    ! =======================================================================================================
+
+
+    do i = 1,m
+        write(*,'(*(f10.4))')  CM(i,:)
+    end do  
     
 
 
