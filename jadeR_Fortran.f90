@@ -19,13 +19,13 @@ program jadeR_Fortran
     ! Body of jadeR_Fortran
     
         
-    real*8,allocatable::X(:,:)
-    integer m, X_size1, X_size2
+    real*8,allocatable::X(:,:),B(:,:)
+    integer m, X_size1, X_size2,i
         
     m = 2
     X_size1 = 3
     X_size2 = 4
-    allocate(X(X_size1, X_size2))
+    allocate(X(X_size1, X_size2),B(m,X_size1))
     X(1,1) = 1
     X(1,2) = 3
     X(1,3) = 2
@@ -41,10 +41,12 @@ program jadeR_Fortran
     ! print *, X(1,1),X(1,2),X(1,3)
     ! print *, X(2,1),X(2,2),X(2,3)
     call jadeR(X, m, X_size1, X_size2)
+
+
     
     
-    ! print *, X(1,1),X(1,2),X(1,3)
-    ! print *, X(2,1),X(2,2),X(2,3)
+    
+
 end program jadeR_Fortran
     
     
@@ -57,7 +59,7 @@ subroutine jadeR(X, m, X_size1, X_size2)
     ! X is the matrix     m is the number of the modes   
     ! X_size1 is the rows , X_size2 is the cols
 
-    integer i,j  ! 循环变量
+    integer i,j,i_,j_  ! 循环变量
     integer m, n, T, X_size1, X_size2
     real*8 X(X_size1, X_size2)
     real*8 sum_E
@@ -74,6 +76,13 @@ subroutine jadeR(X, m, X_size1, X_size2)
     integer, allocatable :: Uns(:),range_(:)
     real*8 , allocatable :: V(:,:),Diag(:,:)
     real*8 On,Off
+    integer encore,sweep,updates,upds
+    real*8 seuil,c_,s_,ton,toff,theta,Gain
+    real*8 , allocatable :: g(:,:),gg(:,:),G_(:,:)
+    integer, allocatable :: Ip(:),Iq(:),pair(:)
+    real*8 , allocatable :: A(:,:)
+    real*8 , allocatable ::b_(:)
+
         
     n = X_size1
     T = X_size2
@@ -83,21 +92,23 @@ subroutine jadeR(X, m, X_size1, X_size2)
         write (*,*) "jade -> Do not ask more sources than sensors here!!!"
         return
     else
-        write (*,100) "jade -> Looking for", m , "sources"
+        write (*,"(' ',A,' ',I2.2,' ',A)") "jade -> Looking for", m , "sources"
     end if
     
+
+! =======================================================================================================    
     ! Mean removal
     ! 对数据矩阵的行进行去平均操作 
-    ! =======================================================================================================    
     write (*,*) "jade -> Removing the mean value"    
     call juping(X, n, T)
     ! =======================================================================================================
     
 
     
+
+! =======================================================================================================
     ! whitening & projection onto signal subspace
     ! 信号子空间的白化与投影
-    ! =======================================================================================================
     write (*,*) "jade -> Whitening the data"
     
     ! An eigen basis for the sample covariance matrix
@@ -165,9 +176,10 @@ subroutine jadeR(X, m, X_size1, X_size2)
 
 
     
+
+! =======================================================================================================
     ! Reshaping of the data, hoping to speed up things a little bit
     ! 改变数据矩阵形状，以加速
-    ! =======================================================================================================
     write (*,*) "jade -> Estimating cumulant matrices"
     allocate(X_tran(T,m))
     X_tran = TRANSPOSE(X_)
@@ -210,10 +222,12 @@ subroutine jadeR(X, m, X_size1, X_size2)
 
 
 
+    
+! =======================================================================================================
     ! joint diagonalization of the cumulant matrices
     ! 累积量矩阵的联合对角化
-    ! =======================================================================================================
 
+    
     ! The dont-try-to-be-smart init
     ! --------------------------------------------
     allocate(V(m,m),Diag(m,1))
@@ -235,21 +249,130 @@ subroutine jadeR(X, m, X_size1, X_size2)
     end do
     Off   = sum(CM * CM) - On
 
+    seuil	= 1.0e-6 / sqrt(dble(T))  ! A statistically scaled threshold on `small' angles
+    encore  = 1
+    sweep   = 0  ! sweep number
+    updates = 0  ! Total number of rotations
+    upds    = 0  ! Number of rotations in a given seep
+    allocate(g(2,nbcm),gg(2,2),G_(2,2),pair(2))
+    g       = 0.0
+    gg      = 0.0
+    G_      = 0.0
+    c_      = 0.0
+    s_      = 0.0
+    ton     = 0.0
+    toff    = 0.0
+    theta   = 0.0
+    Gain    = 0.0
 
 
+    ! Joint diagonalization proper
+    ! 联合对角化
+    ! --------------------------------------------
+    write (*,*) "jade -> Contrast optimization by joint diagonalization"
+
+    do while (encore)
+        encore = 0
+        upds   = 0
+
+        do i = 1,m-1
+            do j = i+1,m
+                allocate(Ip((m*nbcm-i)/2+1))
+                allocate(Iq((m*nbcm-j)/2+1))
+
+                j_ = 1
+                do i_ = i,m*nbcm,m
+                    Ip(j_) = i_
+                    j_     = j_ + 1
+                end do
+
+                j_ = 1
+                do i_ = j,m*nbcm,m
+                    Iq(j_) = i_
+                    j_     = j_ + 1
+                end do
+
+                ! computation of Givens angle
+                g(1,:) = CM(i,Ip) - CM(j,Iq) 
+                g(2,:) = CM(i,Iq) + CM(j,Ip)
+                gg     = matmul(g,transpose(g))
+                ton    = gg(1,1) - gg(2,2)
+                toff   = gg(1,2) + gg(2,1) 
+                theta  = 0.5 * atan2(toff,ton + sqrt(ton*ton+toff*toff))
+                Gain   = (sqrt(ton*ton+toff*toff) - ton) / 4
+
+
+                ! Givens update
+                if (abs(theta) > seuil) then
+                    encore        = 1
+                    upds          = upds + 1
+                    c_            = cos(theta)
+                    s_            = sin(theta)
+                    G_            = reshape([c_,s_,-s_,c_],[2,2])
+                    pair          = [i,j]
+                    V(:,pair)     = matmul(V(:,pair) , G_)
+                    CM(pair,:)    = matmul(transpose(G_),CM(pair,:))
+                    CM(:,[Ip,Iq]) = reshape([c_*CM(:,Ip)+s_*CM(:,Iq),-s_*CM(:,Ip)+c_*CM(:,Iq)],[m,m*nbcm]) 
+
+                    On   = On  + Gain
+                    Off  = Off - Gain
+
+                end if
+                deallocate(Ip,Iq)
+            end do ! of the loop on j
+        end do ! of the loop on i        
+        write (*,"(' ',A,I3.3,A,I3.3,A)") "jade -> Sweep ", sweep," completed in ", upds, " rotations"
+        sweep   = sweep + 1 
+        updates = updates + upds
+    end do ! of the while loop
+
+    write (*,"(' ',A,I3.3,A)") "jade -> Total of ",updates , " Givens rotations"
     ! =======================================================================================================
 
 
+
+
+! =======================================================================================================
+    ! A separating matrix
+    ! 分离矩阵
+    B = matmul(transpose(V),B)
+    ! =======================================================================================================
+    
+
+! =======================================================================================================
+    ! Permute the rows of the separating matrix B to get the most energetic components first.
+    ! Here the **signals** are normalized to unit variance.  Therefore, the sort is
+    ! according to the norm of the columns of A = pinv(B)
+    ! 首先改变分离矩阵B的行次序，以获得能量最高的分量。
+    ! 这里，**信号**被归一化为单位方差。因此，排序是根据A=pinv（B）列的范数进行的
+    write (*,*) "jade -> Sorting the components"
+    allocate(A(n,m),Ds(m),k(m),D(m))
+    call max_pinv(B,m,n,A)
+    A  = A * A
     do i = 1,m
-        write(*,'(*(f10.4))')  CM(i,:)
+        D(i) = sum(A(:,i))
     end do  
+    call sort_(Ds,k,D,m)
+    B  = B(k,:)
+    B  = B(m:1:-1,:)
+
+    ! Signs are fixed by forcing the first column of B to have non-negative entries.
+    ! 通过强制B的第一列包含非负数来固定标志。
+    ! --------------------------------------------
+    write (*,*) "jade -> Fixing the signs"
+    allocate(b_(m))
+    b_  = B(:,1)
+    b_  = sign(1.0, sign(1.0,b_) + 0.1)  ! just a trick to deal with sign=0  具体的sign用法 参考百度
     
+    do i = 1,m
+        B(i,:) = B(i,:) * b_(i)
+    end do   
+    ! =======================================================================================================
 
 
-    
-    
-
-
-100 format(' ',A,' ',I2.2,' ',A)
+    do i = 1,size(B,1)
+        write(*,'(*(f10.4))')  B(i,:)
+    end do  
+    100 format(' ',A,' ',I2.2,' ',A)
 end subroutine
 

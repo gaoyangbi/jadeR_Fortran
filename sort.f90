@@ -39,14 +39,14 @@ subroutine sort_(Ds,k,D,x_size)
         end do 
     end do
 
-    write (*,*) '原始特征值为:'
-    write (*,'(*(f10.4))') D
+    ! write (*,*) '原始特征值为:'
+    ! write (*,'(*(f10.4))') D
 
-    write (*,*) '从小到大排列后的特征值为:'
-    write (*,'(*(f10.4))') Ds
+    ! write (*,*) '从小到大排列后的特征值为:'
+    ! write (*,'(*(f10.4))') Ds
 
-    write (*,*) '排列后的特征值在原始特征值序列的位置为:'
-    write (*,'(*(i10.3))') k
+    ! write (*,*) '排列后的特征值在原始特征值序列的位置为:'
+    ! write (*,'(*(i10.3))') k
     
 end subroutine
 

@@ -1,8 +1,8 @@
 subroutine max_inv(x,x_size,inv_x)
-    ! ¶Ô·½Õó½øÐÐÇóÄæ
+    ! å¯¹æ–¹é˜µè¿›è¡Œæ±‚é€†
     use lapack95
     use f95_precision  
-    integer x_size,i
+    integer x_size
     real*8 x(x_size,x_size)
     real*8 inv_x(x_size,x_size)
     integer ipiv(x_size)

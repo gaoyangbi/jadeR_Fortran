@@ -14,14 +14,14 @@ subroutine eig(x, x_size, U, D)
     U = vr
     D = wr
 
-    write (*,*) '特征值为:'
-    write (*,'(*(f10.4))') wr
+    ! write (*,*) '特征值为:'
+    ! write (*,'(*(f10.4))') wr
 
-    write (*,*) '特征向量为:'
+    ! write (*,*) '特征向量为:'
 
-    do i = 1,x_size
-        write(*,'(*(f10.4))') vr(i,:)
-    end do
+    ! do i = 1,x_size
+    !     write(*,'(*(f10.4))') vr(i,:)
+    ! end do
     
 end subroutine
 
