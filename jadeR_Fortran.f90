@@ -10,49 +10,28 @@
 !
 !  PURPOSE:  Entry point for the console application.
 !
-!****************************************************************************
+!****************************************************************************   
+    
+    
+subroutine jadeR(X, m, X_size1, X_size2, B, E, C, EOF_, PC) 
+    !---------------------------------------------------------------------
+    !   Solve a PCA question 
+    !   X is X_size1 by X_size2, 
+    !   B is m by X_size1, 
+    !   E is X_size1 by 1, 
+    !   C is X_size1 by X_size1, 
+    !   EOF_ is X_size1 by m, 
+    !   PC is X_size2 by m.
+    !
+    !   input
+    !   m : sources
+    !   X_size1, X_size2: size of a
+    !   X: data matrix
 
-program jadeR_Fortran
-    implicit none
-
-    ! Variables
-    ! Body of jadeR_Fortran
-    
-        
-    real*8,allocatable::X(:,:),B(:,:)
-    integer m, X_size1, X_size2,i
-        
-    m = 2
-    X_size1 = 3
-    X_size2 = 4
-    allocate(X(X_size1, X_size2),B(m,X_size1))
-    X(1,1) = 1
-    X(1,2) = 3
-    X(1,3) = 2
-    X(1,4) = 4
-    X(2,1) = 9
-    X(2,2) = 7
-    X(2,3) = 8
-    X(2,4) = 5
-    X(3,1) = 9
-    X(3,2) = 15
-    X(3,3) = 18
-    X(3,4) = 13
-    ! print *, X(1,1),X(1,2),X(1,3)
-    ! print *, X(2,1),X(2,2),X(2,3)
-    call jadeR(X, m, X_size1, X_size2)
-
-
-    
-    
-    
-
-end program jadeR_Fortran
-    
-    
-    
-    
-subroutine jadeR(X, m, X_size1, X_size2) 
+    !
+    !   output
+    !   B: gravity acceleration
+    !---------------------------------------------------------------------
     use blas95
     use f95_precision
     implicit none
@@ -61,15 +40,15 @@ subroutine jadeR(X, m, X_size1, X_size2)
 
     integer i,j,i_,j_  ! 循环变量
     integer m, n, T, X_size1, X_size2
-    real*8 X(X_size1, X_size2)
+    real*8 X(X_size1, X_size2),B(m,X_size1),E(X_size1,1),C(X_size1,X_size1)
+    real*8 EOF_(X_size1,m),PC(X_size2,m)
     real*8 sum_E
     real*8 , allocatable :: U(:,:), D(:)
     real*8 , allocatable :: Ds(:)
     integer, allocatable :: k(:)
-    real*8 , allocatable :: C(:,:),E(:,:)
     integer*8 , allocatable :: PCs(:)  
-    real*8 , allocatable :: B(:,:),scales(:),PC(:,:) 
-    real*8 , allocatable :: inv_PC(:,:),EOF_(:,:)
+    real*8 , allocatable :: scales(:)
+    real*8 , allocatable :: inv_PC(:,:)
     real*8 , allocatable :: X_(:,:),X_tran(:,:)    
     integer dimsymm,nbcm
     real*8 , allocatable :: CM(:,:),R(:,:),Qij(:,:),Xim(:,:),Xijm(:,:),R_vec_i(:,:),R_vec_j(:,:)
@@ -139,8 +118,6 @@ subroutine jadeR(X, m, X_size1, X_size2)
         j = j + 1
     end do
 
-    allocate(C(n,n))
-    allocate(E(n,1))
     C = matmul(X,transpose(X))/T
     do i = 1,n
         E(n-i+1,1) = D(i)
@@ -149,15 +126,12 @@ subroutine jadeR(X, m, X_size1, X_size2)
     E     = E *100.0 /sum_E
     
     ! ---  PCA  ----------------------------------------
-    allocate(B(m,n))
     B = transpose(U(:,k(PCs)))   ! At this stage, B does the PCA on m components
 
 
     ! ---  Scaling  -------------------------------------
     allocate(scales(m))
-    allocate(PC(T,m))
     allocate(inv_PC(m,m))
-    allocate(EOF_(n,m))
     scales = SQRT(Ds(PCs))  ! The scales of the principal components .
     do i = 1,m 
         B(i,:) = 1.0/scales(i) * B(i,:)  ! Now, B does PCA followed by a rescaling = sphering
@@ -171,7 +145,7 @@ subroutine jadeR(X, m, X_size1, X_size2)
     X_    = MATMUL(B,X)
     
     ! --- release variable memory-----------------------
-    deallocate(U,D,Ds,k,PCs,scales,inv_PC,C)
+    deallocate(U,D,Ds,k,PCs,scales,inv_PC)
     ! =======================================================================================================
 
 
@@ -368,11 +342,7 @@ subroutine jadeR(X, m, X_size1, X_size2)
         B(i,:) = B(i,:) * b_(i)
     end do   
     ! =======================================================================================================
-
-
-    do i = 1,size(B,1)
-        write(*,'(*(f10.4))')  B(i,:)
-    end do  
     100 format(' ',A,' ',I2.2,' ',A)
+
 end subroutine
 
