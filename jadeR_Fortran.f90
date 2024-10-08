@@ -30,7 +30,11 @@ subroutine jadeR(X, m, X_size1, X_size2, B, E, C, EOF_, PC)
 
     !
     !   output
-    !   B: gravity acceleration
+    !   B: transformation matrix
+    !   E: the energy of sources
+    !   EOF_:  EOF spatial patterns
+    !   PC  :  EOF temporal modes
+    !   
     !---------------------------------------------------------------------
     use blas95
     use f95_precision
