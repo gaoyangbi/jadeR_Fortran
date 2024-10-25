@@ -87,7 +87,7 @@ subroutine jadeR(X, m, X_size1, X_size2, B, E, C, EOF_, PC)
     call juping(X, n, T)
     ! =======================================================================================================
     
-    C = matmul(X,transpose(X))/T    
+
 
 ! =======================================================================================================
     ! whitening & projection onto signal subspace
@@ -109,15 +109,16 @@ subroutine jadeR(X, m, X_size1, X_size2, B, E, C, EOF_, PC)
 
     ! 当数据矩阵维度过大时，直接求取协方差矩阵的特征向量耗时过长，可以采用SVD分解
     ! -------------------------------------- 直接用特征值分解求取
+    ! C = matmul(X,transpose(X))/T
     ! call eig(C, n, U, D)  
     !-------------------------------------- SVD分解求取
     X0 = X
     call gesvd(X0, s, U)  ! SVD会把X改变，注意！！
-    D_ = matmul(matmul(transpose(U), C),U)
-    do i = 1,X_size1
-        D(i) = D_(i,i)
-    end do
+    D = s*s/T
+    write (*,*) "jade -> finished SVD decomposition"
+    ! ===============================================================
 
+    ! ===============================================================
     ! Sort by increasing variances
     ! 将特征值从小到大排列
     ! Ds从小到大排序后的特征值序列
@@ -125,8 +126,18 @@ subroutine jadeR(X, m, X_size1, X_size2, B, E, C, EOF_, PC)
     ! --------------------------------------------
     allocate(Ds(X_size1))
     allocate(k(X_size1))
-    call sort_(Ds,k,D,X_size1)
+    ! -------------------------------------------自己写的sort函数效率太低，由于原本输出就是按顺序的，
+    ! 建议以后重新写sort算法，eig特征值分解，从小到大排列，svd分解从大到小排列
+    !call sort_(Ds,k,D,X_size1)
+    ! -----------------------------------------------    
+    Ds = 0.0
+    do i = 1,X_size1
+        Ds(X_size1-i+1) = D(i)
+        k(X_size1-i+1) = i
+    end do
 
+    write (*,*) "jade -> finished Ds sorted"
+    ! ===============================================================
 
     ! The m most significant princip. comp. by decreasing variance
     ! 选择最后m个最显著的特征值
@@ -356,12 +367,29 @@ subroutine jadeR(X, m, X_size1, X_size2, B, E, C, EOF_, PC)
     ! 这里，**信号**被归一化为单位方差。因此，排序是根据A=pinv（B）列的范数进行的
     write (*,*) "jade -> Sorting the components"
     allocate(A(n,m),Ds(m),k(m),D(m))
+
     call max_pinv(B,m,n,A)
+
     A  = A * A
     do i = 1,m
         D(i) = sum(A(:,i))
     end do  
+
+    ! ===============================================================
+    ! -------------------------------------------自己写的sort函数效率太低，由于原本输出就是按顺序的，
+    ! 建议以后重新写sort算法，eig特征值分解，从小到大排列，svd分解从大到小排列
     call sort_(Ds,k,D,m)
+    ! -----------------------------------------------    
+    ! Ds = 0.0
+    ! do i = 1,m
+    !     Ds(m-i+1) = D(i)
+    !     k(m-i+1) = i
+    ! end do
+
+    write (*,*) "jade -> finished Ds sorted"
+    ! ===============================================================
+
+
     B  = B(k,:)
     B  = B(m:1:-1,:)
 

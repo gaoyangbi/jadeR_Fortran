@@ -3,7 +3,7 @@ subroutine max_pinv(x,x_size1,x_size2,pinv_x)
     use lapack95
     use f95_precision  
     integer x_size1,x_size2,i
-    real*8 x(x_size1,x_size2),U(x_size1,x_size1),S(x_size1,x_size2)
+    real*8 x(x_size1,x_size2),U(x_size1,x_size1),S(x_size1,x_size2),x0(x_size1,x_size2)
     real*8 V(x_size2,x_size2),SS(min(x_size1,x_size2),min(x_size1,x_size2))
     real*8 s1(min(x_size1,x_size2))
     real*8 pinv_x(x_size2,x_size1)
@@ -13,7 +13,8 @@ subroutine max_pinv(x,x_size1,x_size2,pinv_x)
     !     write(*,'(*(f10.4))')  x(i,:)
     ! end do
 
-    call gesvd(x,s1,U,V)  ! //此处返回的V是V的转置Vt
+    x0 = x
+    call gesvd(x0,s1,U,V)  ! //此处返回的V是V的转置Vt  ! SVD会把X改变，注意！！
 
     ! write(*,*) "U is ..."
     ! do i = 1,size(U,1)
@@ -32,8 +33,11 @@ subroutine max_pinv(x,x_size1,x_size2,pinv_x)
     !     write(*,'(*(f10.4))')  V(i,:)
     ! end do
 
+    ! ================================================
     ! write(*,*) "checking, x is ..."
-    x = matmul(matmul(U,S),V)  ! // x = U*S*Vt
+    ! x = matmul(matmul(U,S),V)  ! // x = U*S*Vt
+    ! ================================================
+    
     ! do i = 1,size(x,1)
     !     write(*,'(*(f10.4))')  x(i,:)
     ! end do
