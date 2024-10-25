@@ -37,6 +37,7 @@ subroutine jadeR(X, m, X_size1, X_size2, B, E, C, EOF_, PC)
     !   
     !---------------------------------------------------------------------
     use blas95
+    use lapack95
     use f95_precision
     implicit none
     ! X is the matrix     m is the number of the modes   
@@ -44,10 +45,10 @@ subroutine jadeR(X, m, X_size1, X_size2, B, E, C, EOF_, PC)
 
     integer i,j,i_,j_  ! 循环变量
     integer m, n, T, X_size1, X_size2
-    real*8 X(X_size1, X_size2),B(m,X_size1),E(X_size1,1),C(X_size1,X_size1)
+    real*8 X(X_size1, X_size2),X0(X_size1, X_size2),B(m,X_size1),E(X_size1,1),C(X_size1,X_size1)
     real*8 EOF_(X_size1,m),PC(X_size2,m)
     real*8 sum_E
-    real*8 , allocatable :: U(:,:), D(:)
+    real*8 , allocatable :: U(:,:), D(:), s(:), D_(:,:)
     real*8 , allocatable :: Ds(:)
     integer, allocatable :: k(:)
     integer*8 , allocatable :: PCs(:)  
@@ -86,8 +87,7 @@ subroutine jadeR(X, m, X_size1, X_size2, B, E, C, EOF_, PC)
     call juping(X, n, T)
     ! =======================================================================================================
     
-
-    
+    C = matmul(X,transpose(X))/T    
 
 ! =======================================================================================================
     ! whitening & projection onto signal subspace
@@ -99,9 +99,24 @@ subroutine jadeR(X, m, X_size1, X_size2, B, E, C, EOF_, PC)
     ! U为特征向量 按列排列
     ! D为特征值与U的每一列对应   
     ! --------------------------------------------
+    if ( n.lt.T ) then
+        allocate(s(n))
+    else
+        allocate(s(T))
+    end if    
     allocate(U(X_size1,X_size1))
-    allocate(D(X_size1))
-    call eig(matmul(X,transpose(X))/T, n, U, D)
+    allocate(D(X_size1),D_(X_size1,X_size1))
+
+    ! 当数据矩阵维度过大时，直接求取协方差矩阵的特征向量耗时过长，可以采用SVD分解
+    ! -------------------------------------- 直接用特征值分解求取
+    ! call eig(C, n, U, D)  
+    !-------------------------------------- SVD分解求取
+    X0 = X
+    call gesvd(X0, s, U)  ! SVD会把X改变，注意！！
+    D_ = matmul(matmul(transpose(U), C),U)
+    do i = 1,X_size1
+        D(i) = D_(i,i)
+    end do
 
     ! Sort by increasing variances
     ! 将特征值从小到大排列
@@ -111,6 +126,7 @@ subroutine jadeR(X, m, X_size1, X_size2, B, E, C, EOF_, PC)
     allocate(Ds(X_size1))
     allocate(k(X_size1))
     call sort_(Ds,k,D,X_size1)
+
 
     ! The m most significant princip. comp. by decreasing variance
     ! 选择最后m个最显著的特征值
@@ -122,9 +138,9 @@ subroutine jadeR(X, m, X_size1, X_size2, B, E, C, EOF_, PC)
         j = j + 1
     end do
 
-    C = matmul(X,transpose(X))/T
+    
     do i = 1,n
-        E(n-i+1,1) = D(i)
+        E(n-i+1,1) = Ds(i)
     end do
     sum_E = sum(E)
     E     = E *100.0 /sum_E
@@ -132,6 +148,20 @@ subroutine jadeR(X, m, X_size1, X_size2, B, E, C, EOF_, PC)
     ! ---  PCA  ----------------------------------------
     B = transpose(U(:,k(PCs)))   ! At this stage, B does the PCA on m components
 
+
+
+    ! Signs are fixed by forcing the first column of B to have non-negative entries.
+    ! 通过强制B的第一列包含非负数来固定标志。
+    ! --------------------------------------------
+    write (*,*) "jade -> Fixing the signs"
+    allocate(b_(m))
+    b_  = B(:,1)
+    b_  = sign(1.0, sign(1.0,b_) + 0.1)  ! just a trick to deal with sign=0  具体的sign用法 参考百度
+    
+    do i = 1,m
+        B(i,:) = B(i,:) * b_(i)
+    end do   
+    deallocate(b_)
 
     ! ---  Scaling  -------------------------------------
     allocate(scales(m))
@@ -143,6 +173,7 @@ subroutine jadeR(X, m, X_size1, X_size2, B, E, C, EOF_, PC)
     PC   = TRANSPOSE(MATMUL(B , X))
     call max_inv(MATMUL(TRANSPOSE(PC),PC),m,inv_PC)    
     EOF_ = MATMUL(X , MATMUL(PC , inv_PC))
+
     
     ! --- sphering -------------------------------------
     allocate(X_(m,T))
@@ -345,6 +376,7 @@ subroutine jadeR(X, m, X_size1, X_size2, B, E, C, EOF_, PC)
     do i = 1,m
         B(i,:) = B(i,:) * b_(i)
     end do   
+    deallocate(b_)
     ! =======================================================================================================
     100 format(' ',A,' ',I2.2,' ',A)
 
